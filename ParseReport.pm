@@ -11,6 +11,34 @@ sub _mime_parser {
   return $parser;
 }
 
+sub _parse_subject {
+  my ($self, $subject) = @_;
+
+  chomp $subject;
+  $self->{subject} = $subject;
+  
+  my ($v, $status, $os, $cpu, $cpu_count, $cores) =
+    $subject =~
+      /^Smoke\s # leader
+       \[([0-9.a-zA-Z_\/-]+)\]\s # branch
+       \S+\s  # git describe
+       (PASS(?:-so-far)?|FAIL\(.+\))\s # summary
+       (.*)\s  # OS
+       \(
+       (.*)\/ # cpu type
+       ([0-9]+)\scpu # number of CPUs
+       (?:\[([0-9]+)scores\])? # optional number of cores
+       \)
+       \s*$/x
+	 or die "Cannot parse subject\n";
+  $self->{status} = $status;
+  $self->{os} = $os;
+  $self->{cpu} = $cpu;
+  $cores ||= 1;
+  $self->{cores} = $cores;
+  $self->{cpu_count} = $cpu_count * $cores;
+}
+
 sub _parse_leader {
   my ($self, $body) = @_;
 
@@ -161,29 +189,7 @@ sub _parse {
   
   my $subject = $entity->get("Subject");
   if (defined $subject) {
-    chomp $subject;
-    $self->{subject} = $subject;
-    
-    my ($v, $status, $os, $cpu, $cpu_count, $cores) =
-      $subject =~
-	/^Smoke\s # leader
-	 \[([0-9.a-zA-Z_\/-]+)\]\s # branch
-	 \S+\s  # git describe
-	 (PASS(?:-so-far)?|FAIL\(.+\))\s # summary
-	 (.*)\s  # OS
-	 \(
-	 (.*)\/ # cpu type
-	 ([0-9]+)\scpu # number of CPUs
-	 (?:\[([0-9]+)scores\])? # optional number of cores
-	 \)
-	 \s*$/x
-	   or die "Cannot parse subject\n";
-    $self->{status} = $status;
-    $self->{os} = $os;
-    $self->{cpu} = $cpu;
-    $cores ||= 1;
-    $self->{cores} = $cores;
-    $self->{cpu_count} = $cpu_count * $cores;
+    $self->_parse_subject($subject);
   }
 
   my $from = $entity->get("From");
